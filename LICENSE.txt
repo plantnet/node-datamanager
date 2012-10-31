@@ -1,0 +1,5 @@
+Copyrigth (c) 2012 CIRAD-INRA-INRIA-IRD-TelaBotanica
+
+This software is distributed under the Cecill V2 license. 
+
+http://www.cecill.info/licences/Licence_CeCILL_V2-en.txt
