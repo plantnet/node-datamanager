@@ -22,7 +22,7 @@ var
 http = require('http'),
 vm = require('vm'),
 url = require('url'),
-couchdb = require('datamanager-node-couchdb');
+couchdb = require('plantnet-node-couchdb');
 
 
 function log(msg) {
