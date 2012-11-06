@@ -166,21 +166,23 @@ function createDb(srcDb, userName, userRoles, query){
     }
 
     var app_doc = '_design/datamanager';
-    
-    client.replicate(
-        srcDb, 
-        dstDb, 
-        {
-            create_target: true,
-            doc_ids: [app_doc]
-        }, 
-        function(err, data) {
-            if (err) {
-                err.src_db = srcDb;
-                err.dst_db = dstDb;
-                error(err);
-            } else {
-                var db = client.db(dstDb),
+
+    client.db(dstDb).create(function (err, data) {
+        
+        if (err) { error(err); return; }
+
+        client.replicate(
+            srcDb, 
+            dstDb, 
+            { doc_ids: [app_doc]}, 
+
+            function(err, data) {
+                if (err) {
+                    err.src_db = srcDb;
+                    err.dst_db = dstDb;
+                    error(err);
+                } else {
+                    var db = client.db(dstDb),
                     dbName = dstDb,
                     rights = {
                         admins: {
@@ -196,7 +198,7 @@ function createDb(srcDb, userName, userRoles, query){
                     '_security', 
                     rights, 
                     function() {
-
+                        
                         if(userName) {
                             setDbAdmin(
                                 dstDb, 
@@ -206,17 +208,18 @@ function createDb(srcDb, userName, userRoles, query){
                                 }
                             );
                         }
-
+                        
                         respond({
-                                   status: 'ok',
-                                   action: 'create',
-                                   src_db: srcDb,
-                                   dst_db: dstDb
-                               });
+                            status: 'ok',
+                            action: 'create',
+                            src_db: srcDb,
+                            dst_db: dstDb
+                        });
                     }
                 );
-            }
-     });
+                }
+            });
+    });
 }
 
 
@@ -451,6 +454,14 @@ function main () {
     if(!client) {
         client = couchdb.createClient("5986", "localhost");
     }
+
+    // test
+    //  process_req({
+    //     info : {db_name : "datamanager"},
+    //     userCtx : { name : "sdufour", roles : ["createdb"]},
+    //     query : { action : 'create', db_name: 'abcd'}
+    // })
+   
 
     // stdin callback to communicate with couchdb
     process.stdin.resume();
