@@ -455,7 +455,7 @@ function main () {
     } catch (Exception) {}
     
     if(!client) {
-        client = couchdb.createClient("5986", "localhost");
+        client = couchdb.createClient("5984", "localhost");
     }
 
     // test
