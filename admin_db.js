@@ -1,3 +1,4 @@
+#!/usr/bin/nodejs
 /*
 Admin db services
 
@@ -411,6 +412,8 @@ function cleanRoles(srcDb, rolesToClean) {
         }
     );
 }
+
+
 
 function process_query(action, srcDb, userName, userRoles, query) {
     var actionMap = {

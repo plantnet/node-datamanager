@@ -1,3 +1,4 @@
+#!/usr/bin/nodejs
 /* 
  * Datamanager node server
  * -----------------------
@@ -203,7 +204,6 @@ function process_req(q) {
 
 // parse and process an request
 function parse_req(req, res) {
-    
     try{
         var parsed_url = url.parse(req.url, true),
         urls = parsed_url.pathname.split("/"),
@@ -214,6 +214,7 @@ function parse_req(req, res) {
         db = client.db(dbname),
         q = new ActionHandler(res, req.method, dbname, db, action, 
                               urls.slice(1), parsed_url.query);
+
 
         if(!dbname || !action) {
             q.send_error("bad url");
@@ -228,9 +229,11 @@ function parse_req(req, res) {
                        body += data;
                    });
             req.on('end', function () {
-                       q.data = body;
-                       process_req(q);
-                   });
+                try { q.data = JSON.parse(body); }
+                catch(Exception) { q.data = body; }
+
+                process_req(q);
+            });
         } else {
             process_req(q);
         }
