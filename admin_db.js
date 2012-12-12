@@ -370,7 +370,7 @@ function setRoles(srcDb, userName, userRoles, query) {
     );
 }
 
-//http://localhost:5984/dbName/_admin_db?action=clean_roles&roles=[role1, role2]
+// remove roles
 function cleanRoles(srcDb, rolesToClean) {
     var userDb = client.db('_users');
     userDb.allDocs(// get all user docs
@@ -397,22 +397,11 @@ function cleanRoles(srcDb, rolesToClean) {
                         }
                     }
                 ); // end for each
-                userDb.bulkDocs(
-                    {docs: newDocs}, 
-                    function () {
-                        respond({
-                            status: 'ok',
-                            action: 'clean_roles',
-                            src_db: srcDb,
-                            roles: rolesToClean 
-                        });
-                    }
-                );
+                userDb.bulkDocs({docs: newDocs});
             }
         }
     );
 }
-
 
 
 function process_query(action, srcDb, userName, userRoles, query) {

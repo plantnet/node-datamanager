@@ -1,6 +1,6 @@
 {
   "name": "plantnet-node-datamanager",
-  "version": "0.1.4",
+  "version": "0.7.6",
   "author": "Samuel Dufour-Kowalski <samuel.dufour@cirad.fr>",
   "description": "",
   "keywords": [
@@ -16,7 +16,7 @@
             },
   "dependencies": {
      "iniparser" : "*",
-     "plantnet-node-couchdb" : "git://github.com/plantnet/node-couchdb.git"
+     "plantnet-node-couchdb" : "http://github.com/plantnet/node-couchdb/tarball/master"
   },
   "devDependencies": {}
 }

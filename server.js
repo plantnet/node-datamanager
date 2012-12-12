@@ -4,7 +4,8 @@
  * -----------------------
  * 
  *  http://127.0.0.1:5984/_dm/db_name/action?param=titi
- * 
+ *  http://127.0.0.1:5984/_dm/db_name/ddoc/action?param=titi 
+ *
  * Actions are located in server/action
  * libs are located in server/lib
  * 
@@ -37,7 +38,7 @@ process.on('uncaughtException', function(err) {
 
 
 /* ActionHandler object is sent to action handler */
-var ActionHandler =  function (r, method, dbname, db, action, path, params) {
+var ActionHandler =  function (r, method, dbname, db, ddoc_id, action, path, params, clientsPool) {
     this.r = r;
     this.method = method;
     this.dbname = dbname;
@@ -45,11 +46,9 @@ var ActionHandler =  function (r, method, dbname, db, action, path, params) {
     this.action = action;
     this.path = path;
     this.params = params;
-
-    // member to save code
-    this.server_lib = null;
-    this.server_action = null;
-    
+    this.ddoc_id = ddoc_id;
+    this.ddoc;
+    this.clientsPool = clientsPool;
 };
 
 ActionHandler.cache = {}; // cache for _design/datamanager
@@ -59,9 +58,9 @@ ActionHandler.prototype = {};
 // get code from _design/datamanager doc
 // use etag to cache data
 ActionHandler.prototype.init = function (cb) {
-    var docid = "_design/datamanager";
-
-    var self = this, etag, cached_doc = ActionHandler.cache[self.dbname];
+    var docid = this.ddoc_id; // "_design/datamanager";
+    var self = this, etag, key = self.dbname + docid
+    cached_doc = ActionHandler.cache[key];
 
     // cache with etags
     if(cached_doc) { etag = cached_doc._rev; }
@@ -70,22 +69,25 @@ ActionHandler.prototype.init = function (cb) {
 
                 function (er, data) {
                     if(er === 404) {
-                        throw "not a datamanager db";
+                        throw "wrong doc";
                     }
                     if(er === 304 && cached_doc) { // not modified
                         data = cached_doc;
                     } 
                     if (data) {
+                        self.ddoc = data;
+                        self.ddoc.server = self.ddoc.server || {}
+                        
                         try {
-                            ActionHandler.cache[self.dbname] = data; // save cache
-                            self.server_lib = data.server.lib;
-                            self.server_action = data.server.action;
+                            ActionHandler.cache[key] = data; // save cache
                             cb();
 
                         } catch (x) {
                             cb(x);
                         }
-                    } 
+                    } else {
+                        cb("unknown design doc " + docid)
+                    }
                 });
 };
 
@@ -113,9 +115,9 @@ ActionHandler.prototype.send_file = function (str_data, filename) {
 
     this.r.writeHead(200, {'Content-Type': 'application/force-download',
                            //"Content-Transfer-Encoding": "application/octet-stream\n",
-		           "Content-disposition": "attachment; filename=" + filename,
+		                   "Content-disposition": "attachment; filename=" + filename,
                            'Content-Length': str_data.length,
-		           "Pragma": "no-cache", 
+		                   "Pragma": "no-cache", 
                            "Cache-Control": "must-revalidate, post-check=0, pre-check=0, public",
                            "Expires": "0"
                           });
@@ -125,13 +127,20 @@ ActionHandler.prototype.send_file = function (str_data, filename) {
 // get a lib
 ActionHandler.prototype.require = function (lib_name) {
 
-    var self = this, lib_src = this.server_lib[lib_name], lib, exports = {};
-    this.lib_cache = this.lib_cache || {}; // cache libs
+    this.ddoc.server.lib_cache = this.ddoc.server.lib_cache || {}; // cache libs
+    this.ddoc.server.lib = this.ddoc.server.lib || {};
 
-    if(this.lib_cache[lib_name]) {
-        return this.lib_cache[lib_name];
+    var self = this, 
+    lib_src = this.ddoc.server.lib[lib_name], 
+    exports = {};
+    
+    var lib_cache = this.ddoc.server.lib_cache;
+    
+    if(lib_cache[lib_name]) {
+        return lib_cache[lib_name];
     }
-    this.lib_cache[lib_name] = "processing"; // avoid infinite require loop;
+    
+    lib_cache[lib_name] = "processing"; // avoid infinite require loop;
 
     if(lib_src) {
         try {
@@ -139,10 +148,10 @@ ActionHandler.prototype.require = function (lib_name) {
                 exports : exports,
                 log : function () { log(arguments) }, // closure
                 require : function (libname) { // closure
-                    if(self.lib_cache[libname] === "processing") {
+                    if(lib_cache[libname] === "processing") {
                         throw "Infinite loop in require";
                     }
-                                       return self.require(libname);
+                    return self.require(libname);
                 },
                 Buffer : Buffer
                 
@@ -152,22 +161,38 @@ ActionHandler.prototype.require = function (lib_name) {
         }
     }
 
-    this.lib_cache[lib_name] = exports;
+    lib_cache[lib_name] = exports;
     return exports;
 };
 
 // run an action
 ActionHandler.prototype.run_action = function () {
 
-    var self = this, 
-    action_src = this.server_action[this.action + "." + this.method.toLowerCase()] ||
-        this.server_action[this.action];
-
-
-    if(action_src) {
+    this.ddoc.server.action_script = this.ddoc.server.action_script || {};
+    
+    var self = this, key = this.action + "." + this.method.toLowerCase(),
+    action_script = this.ddoc.server.action_script[key];
+    
+    if (!action_script) {
+        var src = this.ddoc.server.action[key] || this.ddoc.server.action[this.action];
+        if (!src) {
+            self.send_error("unknown action " + this.action);
+            return;
+        }
+        
         try {
-            // execute action in sandbox
-            vm.runInNewContext(action_src, { 
+            action_script = vm.createScript(src);
+            this.ddoc.server.action_script[key] = action_script;
+        } catch(x) {
+            self.send_error("" + x);
+            return;
+        }       
+    }
+        
+    
+    try {
+        // execute action in sandbox
+        action_script.runInNewContext({ 
                 db : self.db,
                 q : self,
                 log : function () { log(arguments) }, // closure
@@ -175,13 +200,11 @@ ActionHandler.prototype.run_action = function () {
                     return self.require(libname);
                 },
                 Buffer : Buffer
-                               });
-        } catch (x) {
-            self.send_error("" + x);
-        }
-    } else {
-        self.send_error("unknown action " + this.action);
+        });
+    } catch (x) {
+        self.send_error("" + x);
     }
+   
 };
 
 
@@ -206,21 +229,38 @@ function process_req(q) {
 function parse_req(req, res) {
     try{
         var parsed_url = url.parse(req.url, true),
+        ddoc_id = "_design/datamanager",
         urls = parsed_url.pathname.split("/"),
-        dbname = urls[1],
-        action = urls[2];
+        dbname = urls[1];
+        
+        if(urls.length >= 4) {
+            ddoc_id = "_design/" + urls[2];
+            action = urls[3];
+        } else {
+            action = urls[2];
+        }
 
-        var client = couchdb.createClient(5984, "localhost", null, null, 0, 0, req.headers.cookie),
-        db = client.db(dbname),
-        q = new ActionHandler(res, req.method, dbname, db, action, 
-                              urls.slice(1), parsed_url.query);
+        var clientsPool = [], // clients pool to achieve parallelization
+            poolSize = 10; // pool size
+        for (var i=0; i < poolSize; i++) {
+            var cl = couchdb.createClient(5984, "localhost", null, null, 0, 0, req.headers.cookie);
+            clientsPool.push({
+                client: cl,
+                db: cl.db(dbname)
+            });
+        }
 
+        //var client = couchdb.createClient(5984, "localhost", null, null, 0, 0, req.headers.cookie),
+        //db = client.db(dbname);
+        var client = clientsPool[0].client, // retrocompatibility
+            db = clientsPool[0].db;
+        //var q = new ActionHandler(res, req.method, dbname, db, ddoc_id, action, urls.slice(1), parsed_url.query);
+        var q = new ActionHandler(res, req.method, dbname, db, ddoc_id, action, urls.slice(1), parsed_url.query, clientsPool);
 
         if(!dbname || !action) {
             q.send_error("bad url");
             return;
         }
-
 
         // POST
         if (req.method == 'POST') {
