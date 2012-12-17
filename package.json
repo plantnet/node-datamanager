@@ -1,6 +1,6 @@
 {
   "name": "plantnet-node-datamanager",
-  "version": "0.7.6",
+  "version": "0.7.7",
   "author": "Samuel Dufour-Kowalski <samuel.dufour@cirad.fr>",
   "description": "",
   "keywords": [
@@ -11,8 +11,8 @@
   "directories": {
   },
   "main": "",
-  "bin" : { "plantnet-dm-server": "server.js",
-            "plantnet-dm-admin_db": "admin_db.js"
+  "bin" : { "plantnet-dm-user-server": "user_server.js",
+            "plantnet-dm-admin-server": "admin_server.js"
             },
   "dependencies": {
      "iniparser" : "*",
