@@ -271,12 +271,10 @@ exports.setRoles = function (srcDb, userName, userRoles, query) {
     }
    
     // get all user docs
-    userDb.allDocs(
-        {
-            include_docs: true,
-            keys: userkeys,
-        }, 
-        function(err, data) {
+    userDb.allDocs({
+        include_docs: true,
+        keys: userkeys,
+    }, function(err, data) {
             if (err) {
                 error(err);
             } else {
