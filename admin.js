@@ -274,7 +274,7 @@ exports.setRoles = function (srcDb, userName, userRoles, query) {
     userDb.allDocs(
         {
             include_docs: true,
-            keys: JSON.stringify(userkeys)
+            keys: userkeys,
         }, 
         function(err, data) {
             if (err) {
