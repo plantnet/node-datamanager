@@ -96,10 +96,10 @@ ActionHandler.prototype.init = function (cb) {
 ActionHandler.prototype.send_error = function (err) {
 
     this.r.writeHead(400, {"Content-Type": "application/json"});    
-    if(typeof err != "string")  {
-        err = JSON.stringify(err);
+    if(typeof err === "string")  {
+        err = { error : err };
     }
-    this.r.end("{error:'" + err + "'}");
+    this.r.end(JSON.stringify(err) + '\n');
 };
 
 
@@ -107,7 +107,7 @@ ActionHandler.prototype.send_error = function (err) {
 ActionHandler.prototype.send_json = function (json_data) {
 
     this.r.writeHead(200, {'Content-Type': 'application/json'});
-    this.r.end(JSON.stringify(json_data) +'\n');
+    this.r.end(JSON.stringify(json_data) + '\n');
 };
 
 
