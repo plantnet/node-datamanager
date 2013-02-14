@@ -321,8 +321,8 @@ function main () {
     });
 
     // Create http server on 5995
-    http.createServer(parse_req).listen(5995);  
-    log('Datamanager user server running on port 5995');
+    http.createServer(parse_req).listen(5995, 'localhost');
+    log('Datamanager user server listening on port 5995 of localhost');
 }
 
 main();
