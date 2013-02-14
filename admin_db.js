@@ -22,6 +22,13 @@ password=pwd
 host=localhost
 port=5984
 
+
+system Configuration - better than local configuration
+-------------------
+
+create a file admin_db.ini in /opt/datamanager/dm-admin.ini with the same contents
+
+
 Usage
 -----
 http://localhost:5984/dbName/_admin_db?db_name=zzzz&action=create

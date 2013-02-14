@@ -60,7 +60,6 @@ exports.getActiveTasks = function (srcDb, user, userRoles, query) {
                         
                         var otherDb = e.source === srcDb ? e.target : e.source;
                         otherDb = url.parse(otherDb).pathname;
-                        
                         e.details = 'synchronisation with ' + otherDb;
                         return true;
                     }
@@ -126,7 +125,7 @@ exports.createDb = function (srcDb, userName, userRoles, query){
 
     client.db(dstDb).create(function (err, data) {
         
-        if (err) { error(err); return; }
+        if (err) { error(err); return false; }
         if (!srcDb || srcDb === dstDb) { srcDb = "datamanager"; }
         
         client.replicate(
@@ -233,7 +232,8 @@ exports.dropDb = function (srcDb, userName, userRoles, query) {
         error({error: 'invalid role', user: userName, roles: roles});
     } else if (isDbAdmin(dbToRemove, userName, userRoles)) {
         var db = client.db(dbToRemove).remove(
-            function() {
+            function(err) {
+                // @TODO if err, do something!
                 var rolesToClean = [dbToRemove + '.admin', dbToRemove + '.writer', dbToRemove + '.reader'];
                 cleanRoles(srcDb, rolesToClean);
                 respond({
@@ -393,10 +393,9 @@ exports.init = function (respond_func, error_func) {
     if (!client) {
         try {
             // get config
-            var config = iniparser.parseSync('/etc/plantnet/dm-admin.ini');
+            var config = iniparser.parseSync('/opt/datamanager/dm-admin.ini');
             client = couchdb.createClient(config.port, config.host, config.login, config.password);
         } catch (Exception) {}
-        
     }
 
     // try default port

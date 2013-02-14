@@ -26,7 +26,6 @@ vm = require('vm'),
 url = require('url'),
 couchdb = require('plantnet-node-couchdb');
 
-
 function log(msg) {
     console.log(JSON.stringify(["log", JSON.stringify(msg)]));  
 }
@@ -114,6 +113,13 @@ ActionHandler.prototype.send_json = function (json_data) {
 // return a file (code 200)
 ActionHandler.prototype.send_file = function (str_data, filename) {
 
+    ActionHandler.prototype.start_stream(filename);
+    this.r.end(str_data);
+};
+
+// starts progressive downloading of a file (code 200))
+ActionHandler.prototype.start_stream = function (filename) {
+
     this.r.writeHead(200, {
         'Content-Type': 'application/force-download',
         //"Content-Transfer-Encoding": "application/octet-stream\n",
@@ -123,8 +129,17 @@ ActionHandler.prototype.send_file = function (str_data, filename) {
         "Cache-Control": "must-revalidate, post-check=0, pre-check=0, public",
         "Expires": "0"
     });
-    this.r.end(str_data);
 };
+
+// sends a chunk for progressive downloading
+ActionHandler.prototype.send_chunk = function (data) {
+    this.r.write(data);
+}
+
+// closes stream connection
+ActionHandler.prototype.end_stream = function () {
+    this.r.end();
+}
 
 // get a lib
 ActionHandler.prototype.require = function (lib_name) {
@@ -160,6 +175,14 @@ ActionHandler.prototype.require = function (lib_name) {
             });
         } catch (x) {
             self.send_error("" + x);
+        }
+    } else {
+        // try to get lib from node module - may be dangerous?
+        try {
+            lib_cache[lib_name] = require(lib_name);
+            return lib_cache[lib_name];
+        } catch (y) {
+            self.send_error("" + y);
         }
     }
 
