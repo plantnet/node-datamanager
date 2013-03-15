@@ -176,14 +176,6 @@ ActionHandler.prototype.require = function (lib_name) {
         } catch (x) {
             self.send_error("" + x);
         }
-    } else {
-        // try to get lib from node module - may be dangerous?
-        try {
-            lib_cache[lib_name] = require(lib_name);
-            return lib_cache[lib_name];
-        } catch (y) {
-            self.send_error("" + y);
-        }
     }
 
     lib_cache[lib_name] = exports;
