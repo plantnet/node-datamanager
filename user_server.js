@@ -272,7 +272,7 @@ function parse_req(req, res) {
         //db = client.db(dbname);
         var client = clientsPool[0].client, // retrocompatibility
             db = clientsPool[0].db;
-        var q = new ActionHandler(parsed_url.host, res, req.method, 
+        var q = new ActionHandler(req.headers.host, res, req.method, 
                                   dbname, db, ddoc_id, action, urls.slice(1), parsed_url.query, 
                                   clientsPool, client);
 
