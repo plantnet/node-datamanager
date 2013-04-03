@@ -1,15 +1,11 @@
 {
   "name": "plantnet-node-datamanager",
-  "version": "0.8.4",
+  "version": "0.8.5",
   "author": "Samuel Dufour-Kowalski <samuel.dufour@cirad.fr> Mathias Chouet <mathias.chouet@inria.fr>",
   "description": "",
-  "keywords": [
-  ],
-  "engines": [
-    "node"
-  ],
-  "directories": {
-  },
+  "keywords": [],
+  "engines": ["node"],
+  "directories": {},
   "main": "",
   "bin" : { "plantnet-dm-server": "user_server.js",
             "plantnet-dm-admin-server": "admin_server.js"

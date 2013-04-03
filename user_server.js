@@ -258,10 +258,20 @@ function parse_req(req, res) {
             action = urls[2];
         }
 
+        // get user:password
+        var auth = req.headers.authorization; // BASIC dfsfefqf
+        var user, password;
+        if (auth) {
+            auth = auth.split(' ')[1]; // 
+            auth = new Buffer(auth, 'base64').toString('ascii').split(':');
+            user = auth[0];
+            password = auth[1]
+        }
+
         var clientsPool = [], // clients pool to achieve parallelization
             poolSize = 10; // pool size
         for (var i=0; i < poolSize; i++) {
-            var cl = couchdb.createClient(5984, "localhost", null, null, 0, 0, req.headers.cookie);
+            var cl = couchdb.createClient(5984, "localhost", user, password, 0, 0, req.headers.cookie);
             clientsPool.push({
                 client: cl,
                 db: cl.db(dbname)
