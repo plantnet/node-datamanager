@@ -1,18 +1,37 @@
 {
   "name": "plantnet-node-datamanager",
-  "version": "0.8.5",
-  "author": "Samuel Dufour-Kowalski <samuel.dufour@cirad.fr> Mathias Chouet <mathias.chouet@inria.fr>",
+  "version": "0.8.6",
+  "author": {
+    "name": "Samuel Dufour-Kowalski",
+    "email": "samuel.dufour@cirad.fr"
+  },
   "description": "",
   "keywords": [],
-  "engines": ["node"],
+  "engines": [
+    "node"
+  ],
   "directories": {},
   "main": "",
-  "bin" : { "plantnet-dm-server": "user_server.js",
-            "plantnet-dm-admin-server": "admin_server.js"
-            },
-  "dependencies": {
-     "iniparser" : "*",
-     "plantnet-node-couchdb" : "http://github.com/plantnet/node-couchdb/tarball/master"
+  "bin": {
+    "plantnet-dm-server": "user_server.js",
+    "plantnet-dm-admin-server": "admin_server.js"
   },
-  "devDependencies": {}
+  "dependencies": {
+    "iniparser": "*",
+    "plantnet-node-couchdb": "http://github.com/plantnet/node-couchdb/tarball/master"
+  },
+  "devDependencies": {},
+  "_id": "plantnet-node-datamanager@0.8.5",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "optionalDependencies": {},
+  "_engineSupported": true,
+  "_npmVersion": "1.1.4",
+  "_nodeVersion": "v0.6.12",
+  "_defaultsLoaded": true,
+  "dist": {
+    "shasum": "8e91421369e0351dc072728ee266387f336d82f3"
+  },
+  "_from": "http://github.com/plantnet/node-datamanager/tarball/master"
 }

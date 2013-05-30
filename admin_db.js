@@ -61,14 +61,25 @@ function error(data) {
 
 function process_req(req) {
     var srcDb = req.info.db_name,
-    userName = req.userCtx.name,
-    roles = req.userCtx.roles,
-    action = req.query.action;
+        userName = req.userCtx.name,
+        roles = req.userCtx.roles,
+        action = req.query.action,
+        query = req.query;
+
+    // merge POST and GET parameters
+    if (req.method == 'POST') {
+        var postParams = JSON.parse(req.body);
+        for (var key in postParams) {
+            if (! (key in query)) { // GET params get the priority
+                query[key] = postParams[key];
+            }
+        }
+    }
 
     if (!action) {
         error({error: 'invalid action'});
     } else {
-        admin.process_query(action, srcDb, userName, roles, req.query);
+        admin.process_query(action, srcDb, userName, roles, query);
     }
 }
 
@@ -81,12 +92,11 @@ function main () {
     //     userCtx : { name : "sdufour", roles : ["createdb"]},
     //     query : { action : 'create', db_name: 'abcd'}
     // })
-   
 
     // stdin callback to communicate with couchdb
     process.stdin.resume();
     process.stdin.on('data', function(d) {
-        process_req(JSON.parse(d));        
+        process_req(JSON.parse(d));
     });
 
     process.stdin.on('end', function () {
@@ -98,4 +108,4 @@ process.on('uncaughtException', function(err, data) {
     error({'error' : err.stack || err.message});
 });
 
-main();                               
+main();

@@ -4,8 +4,8 @@ Can be used with a proxy server or as a couchdb external
 */
 
 var couchdb = require('plantnet-node-couchdb'),
-iniparser = require('iniparser'),
-url = require('url');
+    iniparser = require('iniparser'),
+    url = require('url');
 
 var client, respond, error, action_map;
 
@@ -78,7 +78,7 @@ exports.getActiveTasks = function (srcDb, user, userRoles, query) {
             }
         );
     }
-}
+};
 
 exports.setPublicDb = function (srcDb, user, user_roles, query) {
     var isPublic = query['public'] === 'true' || query['public'] === true;
@@ -105,8 +105,7 @@ exports.setPublicDb = function (srcDb, user, user_roles, query) {
                 'public': isPublic
             });
         });
-}
-    
+};
 
 exports.createDb = function (srcDb, userName, userRoles, query){
     var dstDb = query.db_name;
@@ -177,7 +176,7 @@ exports.createDb = function (srcDb, userName, userRoles, query){
                 }
             });
     });
-}
+};
 
 
 // return a list of user
@@ -195,7 +194,7 @@ exports.getUserAllDocs = function () {
                 respond(data);
             }
         }); 
-}
+};
 
 //set admin role for user for srcDb
 function setDbAdmin(dbName, userName, cb) {
@@ -220,7 +219,60 @@ function setDbAdmin(dbName, userName, cb) {
             }
         }
     );
-}
+};
+
+/*
+- port: port
+- host: server to reach
+- db: database on remote server
+- username: username on this server
+- password: password on this server
+- action: server action to call
+- params: parameters for remote action
+*/
+exports.callRemoteAction = function(srcDb, userName, userRoles, query) {
+
+    var port = query.port || 5984,
+        host = query.host,
+        db = query.db,
+        username = query.username,
+        password = query.password,
+        remoteAction = query.remoteAction,
+        params = {};
+
+    // parse parameters to object
+    if (query.params) {
+        params = JSON.parse(query.params);
+    }
+
+    var remote;
+    try {
+        remote = couchdb.createClient(port, host, username, password);
+    } catch (Exception) {
+        error('Error connecting to remote host;');
+    }
+
+    var url = '/_dm/' + db + '/' + remoteAction;
+    /*respond({ // debug
+        status: 'ok',
+        action: 'call_remote',
+        requestedUrl: url,
+        params: params
+    });*/
+
+    remote.request(url, params, function(err, data) {
+        if (err) {
+            error('Error calling remote action: ' + JSON.stringify(err));
+        }
+        respond({
+            status: 'ok',
+            action: 'call_remote',
+            requestedUrl: url,
+            params: params,
+            data: data
+        });
+    });
+};
 
 exports.dropDb = function (srcDb, userName, userRoles, query) {
     var dbToRemove = query.db_name;
@@ -246,7 +298,7 @@ exports.dropDb = function (srcDb, userName, userRoles, query) {
     } else {
         error({error: 'user is not a db admin', user: userName, roles: userRoles});
     }
-}
+};
 
 // http://localhost:5984/dbName/_admin_db?action=set_roles&roles={user1 : [role1, role2], user2 : [role1, role2]}
 exports.setRoles = function (srcDb, userName, userRoles, query) {
@@ -323,7 +375,7 @@ exports.setRoles = function (srcDb, userName, userRoles, query) {
             }
         }
     );
-}
+};
 
 // remove roles
 function cleanRoles(srcDb, rolesToClean) {
@@ -371,25 +423,26 @@ exports.process_query = function (action, srcDb, userName, userRoles, query) {
 
 // return couchdb client
 exports.init = function (respond_func, error_func) {
-    
+
     respond = respond_func;
     error = error_func;
-    
+
     actionMap = {
         create : exports.createDb,
         drop : exports.dropDb,
         set_roles : exports.setRoles,
         active_tasks : exports.getActiveTasks,
         user_docs : exports.getUserAllDocs,
-        set_public : exports.setPublicDb
+        set_public : exports.setPublicDb,
+        call_remote: exports.callRemoteAction
     };
-    
+
     try {
         // get config
         var config = iniparser.parseSync(__dirname + '/admin_db.ini');
         client = couchdb.createClient(config.port, config.host, config.login, config.password);
     } catch (Exception) {}
-    
+
     if (!client) {
         try {
             // get config
@@ -402,8 +455,6 @@ exports.init = function (respond_func, error_func) {
     if (!client) {
         client = couchdb.createClient("5984", "localhost");
     }
-       
-    return client;
-}
 
-                           
+    return client;
+};
