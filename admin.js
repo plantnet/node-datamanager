@@ -49,13 +49,13 @@ exports.getActiveTasks = function (srcDb, user, userRoles, query) {
                     error(err); return;
                 }
                 data = data || [];
-                
+
                 data = data.filter(function (e) {
                     if(e.database && e.database === srcDb) {
                         e.details = 'db indexation';
                         return true;
                     }
-                    
+
                     if (e.type === 'replication' && (e.source === srcDb || e.target === srcDb)) {
                         
                         var otherDb = e.source === srcDb ? e.target : e.source;
@@ -65,15 +65,7 @@ exports.getActiveTasks = function (srcDb, user, userRoles, query) {
                     }
                     return false;
                 });
-                
-                data = data.map(function (e) {
-                    return {
-                        type: e.type,
-                        details: e.details,
-                        progress: e.progress
-                    };
-                });
-               
+
                 respond(data);
             }
         );
