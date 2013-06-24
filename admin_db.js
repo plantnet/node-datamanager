@@ -39,6 +39,8 @@ http://localhost:5984/dbName/_admin_db?action=set_roles&roles={user1 : [role1, r
 
 http://localhost:5984/dbName/_admin_db?action=active_tasks
 
+http://localhost:5984/dbName/_admin_db?action=replicator_docs
+
 http://localhost:5984/dbName/_admin_db?action=set_public?public=true
 
 http://localhost:5984/dbName/_admin_db?action=user_docs

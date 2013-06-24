@@ -183,17 +183,31 @@ exports.createDb = function (srcDb, userName, userRoles, query){
 exports.getUserAllDocs = function () {
     var userDb = client.db('_users');
     userDb.allDocs({
-            startkey: 'org.couchdb.user:',
-            endkey: 'org.couchdb.user:\ufff0',
-            include_docs: true
-        },
-        function(err, data) {
-            if (err) {
-                error(err);
-            } else {
-                respond(data);
-            }
+        startkey: 'org.couchdb.user:',
+        endkey: 'org.couchdb.user:\ufff0',
+        include_docs: true
+    },
+    function(err, data) {
+        if (err) {
+            error(err);
+        } else {
+            respond(data);
+        }
         }); 
+};
+
+exports.getReplicatorAllDocs = function () {
+    var replicatorDb = client.db('_replicator');
+    replicatorDb.allDocs({
+        include_docs: true
+    },
+    function(err, data) {
+        if (err) {
+            error(err);
+        } else {
+            respond(data);
+        }
+    }); 
 };
 
 //set admin role for user for srcDb
@@ -432,6 +446,7 @@ exports.init = function (respond_func, error_func) {
         drop : exports.dropDb,
         set_roles : exports.setRoles,
         active_tasks : exports.getActiveTasks,
+        replicator_docs : exports.getReplicatorAllDocs,
         user_docs : exports.getUserAllDocs,
         set_public : exports.setPublicDb,
         call_remote: exports.callRemoteAction
