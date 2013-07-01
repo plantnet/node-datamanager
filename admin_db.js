@@ -2,6 +2,10 @@
 /*
 Admin db services
 
+
+!!OBSOLETE!!
+
+
 CouchDB Configuration 
 ---------------------
 

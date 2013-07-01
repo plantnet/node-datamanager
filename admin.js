@@ -1,21 +1,21 @@
 /*
-sys admin function
-Can be used with a proxy server or as a couchdb external
-*/
+ * sys admin functions
+ * Meant to be used with the '_dm' couchdb proxy handler
+ */
 
 var couchdb = require('plantnet-node-couchdb'),
     iniparser = require('iniparser'),
     url = require('url');
 
-var client, respond, error, action_map;
-
+var adminClient,
+    action_map;
 
 // Validation functions
 
 function valid_action_role(roles, action) {
     return roles.indexOf(action + 'db') >= 0 || roles.indexOf('_admin') >= 0;
 }
-    
+
 function valid_db_name(param, action) {
     return !!param && param.slice(0,1) != '_';
 }
@@ -38,15 +38,16 @@ function isDbMember(dbName, user, user_roles) {
 
 // Handlers
 
-// return active task for a db
-exports.getActiveTasks = function (srcDb, user, userRoles, query) {
-    if (!isDbMember(srcDb, user, userRoles)) {
-        error('not a db member');
+// returns active tasks for a database
+exports.getActiveTasks = function (callback, srcDb, user, userRoles, query) {
+    if (! isDbMember(srcDb, user, userRoles)) {
+        callback('not a db member');
     } else {
-        client.activeTasks(
+        adminClient.activeTasks(
             function (err, data) {
                 if (err) {
-                    error(err); return;
+                    callback(err);
+                    return;
                 }
                 data = data || [];
 
@@ -66,13 +67,14 @@ exports.getActiveTasks = function (srcDb, user, userRoles, query) {
                     return false;
                 });
 
-                respond(data);
+                callback(false, data);
             }
         );
     }
 };
 
-exports.setPublicDb = function (srcDb, user, user_roles, query) {
+// sets a database public or private
+exports.setPublicDb = function (callback, srcDb, user, user_roles, query) {
     var isPublic = query['public'] === 'true' || query['public'] === true;
     
     var rigths = {
@@ -85,12 +87,12 @@ exports.setPublicDb = function (srcDb, user, user_roles, query) {
             roles: isPublic ? [] : [srcDb + '.writer', srcDb + '.reader']
         }};
 
-    var db = client.db(srcDb);
+    var db = adminClient.db(srcDb);
     db.saveDoc(
         '_security', 
         rigths, 
         function() {
-            respond({
+            callback(false, {
                 status: 'ok',
                 action: 'set_public',
                 src_db: srcDb,
@@ -99,27 +101,34 @@ exports.setPublicDb = function (srcDb, user, user_roles, query) {
         });
 };
 
-exports.createDb = function (srcDb, userName, userRoles, query){
+// creates a new database
+exports.createDb = function (callback, srcDb, userName, userRoles, query) {
+
     var dstDb = query.db_name;
     if (!dstDb || !valid_db_name(dstDb, 'create')) {
-        error({error: 'invalid db name'});
+        callback({error: 'invalid db name'});
         return;
     }
     dstDb = dstDb.trim();
 
     if (!valid_action_role(userRoles, 'create')) {
-        error({error: 'invalid role', user: userName, roles: userRoles});
+        callback({error: 'invalid role', user: userName, roles: userRoles});
         return;
     }
 
     var app_doc = '_design/datamanager';
 
-    client.db(dstDb).create(function (err, data) {
-        
-        if (err) { error(err); return false; }
-        if (!srcDb || srcDb === dstDb) { srcDb = "datamanager"; }
-        
-        client.replicate(
+    adminClient.db(dstDb).create(function (err, data) {
+
+        if (err) {
+            callback(err);
+            return false;
+        }
+        if (!srcDb || srcDb === dstDb) {
+            srcDb = "datamanager";
+        }
+
+        adminClient.replicate(
             srcDb, 
             dstDb, 
             { doc_ids: [app_doc]}, 
@@ -128,9 +137,9 @@ exports.createDb = function (srcDb, userName, userRoles, query){
                 if (err) {
                     err.src_db = srcDb;
                     err.dst_db = dstDb;
-                    error(err);
+                    callback(err);
                 } else {
-                    var db = client.db(dstDb),
+                    var db = adminClient.db(dstDb),
                     dbName = dstDb,
                     rights = {
                         admins: {
@@ -146,7 +155,7 @@ exports.createDb = function (srcDb, userName, userRoles, query){
                     '_security', 
                     rights, 
                     function() {
-                        
+
                         if(userName) {
                             setDbAdmin(
                                 dstDb, 
@@ -156,8 +165,8 @@ exports.createDb = function (srcDb, userName, userRoles, query){
                                 }
                             );
                         }
-                        
-                        respond({
+
+                        callback(false, {
                             status: 'ok',
                             action: 'create',
                             src_db: srcDb,
@@ -170,43 +179,59 @@ exports.createDb = function (srcDb, userName, userRoles, query){
     });
 };
 
+//removes a database
+exports.dropDb = function (callback, srcDb, userName, userRoles, query) {
+    var dbToRemove = query.db_name;
+    dbToRemove = dbToRemove.trim();
 
-// return a list of user
-exports.getUserAllDocs = function () {
-    var userDb = client.db('_users');
+    if (!dbToRemove || !valid_db_name(dbToRemove, 'drop')) {
+        callback({error: 'invalid db name'});
+    } else if (!valid_action_role(userRoles, 'drop')) {
+        callback({error: 'invalid role', user: userName, roles: roles});
+    } else if (isDbAdmin(dbToRemove, userName, userRoles)) {
+        var db = adminClient.db(dbToRemove).remove(
+            function(err) {
+                if (err) {
+                    callback(err);
+                    return;
+                }
+                var rolesToClean = [dbToRemove + '.admin', dbToRemove + '.writer', dbToRemove + '.reader'];
+                cleanRoles(srcDb, rolesToClean);
+                callback(false, {
+                    status: 'ok',
+                    action: 'drop',
+                    src_db: srcDb,
+                    dst_db: dbToRemove
+                });
+            });
+    } else {
+        callback({error: 'user is not a db admin', user: userName, roles: userRoles});
+    }
+};
+
+// returns a list of users
+exports.getUserAllDocs = function (callback) {
+    var userDb = adminClient.db('_users');
     userDb.allDocs({
         startkey: 'org.couchdb.user:',
         endkey: 'org.couchdb.user:\ufff0',
         include_docs: true
-    },
-    function(err, data) {
-        if (err) {
-            error(err);
-        } else {
-            respond(data);
-        }
-        }); 
+    }, callback);
 };
 
-exports.getReplicatorAllDocs = function () {
-    var replicatorDb = client.db('_replicator');
+// returns _replicator documents
+exports.getReplicatorAllDocs = function (callback) {
+    var replicatorDb = adminClient.db('_replicator');
     replicatorDb.allDocs({
         include_docs: true
-    },
-    function(err, data) {
-        if (err) {
-            error(err);
-        } else {
-            respond(data);
-        }
-    }); 
+    }, callback);
 };
 
-//set admin role for user for srcDb
+// sets admin role for user for srcDb
 function setDbAdmin(dbName, userName, cb) {
-    var userDb = client.db('_users'),
+    var userDb = adminClient.db('_users'),
     newrole = dbName + '.admin';
-    
+
     userDb.getDoc(
         'org.couchdb.user:' + userName, 
         function(err, data) {
@@ -228,6 +253,7 @@ function setDbAdmin(dbName, userName, cb) {
 };
 
 /*
+ * calls a '_dm' action on another server
 - port: port
 - host: server to reach
 - db: database on remote server
@@ -236,7 +262,7 @@ function setDbAdmin(dbName, userName, cb) {
 - action: server action to call
 - params: parameters for remote action
 */
-exports.callRemoteAction = function(srcDb, userName, userRoles, query) {
+exports.callRemoteAction = function(callback, srcDb, userName, userRoles, query) {
 
     var port = query.port || 5984,
         host = query.host,
@@ -255,22 +281,16 @@ exports.callRemoteAction = function(srcDb, userName, userRoles, query) {
     try {
         remote = couchdb.createClient(port, host, username, password);
     } catch (Exception) {
-        error('Error connecting to remote host;');
+        callback('Error connecting to remote host;');
     }
 
     var url = '/_dm/' + db + '/' + remoteAction;
-    /*respond({ // debug
-        status: 'ok',
-        action: 'call_remote',
-        requestedUrl: url,
-        params: params
-    });*/
 
     remote.request(url, params, function(err, data) {
         if (err) {
-            error('Error calling remote action: ' + JSON.stringify(err));
+            callback('Error calling remote action: ' + JSON.stringify(err));
         }
-        respond({
+        callback(false, {
             status: 'ok',
             action: 'call_remote',
             requestedUrl: url,
@@ -280,61 +300,30 @@ exports.callRemoteAction = function(srcDb, userName, userRoles, query) {
     });
 };
 
-exports.dropDb = function (srcDb, userName, userRoles, query) {
-    var dbToRemove = query.db_name;
-    dbToRemove = dbToRemove.trim();
-    
-    if (!dbToRemove || !valid_db_name(dbToRemove, 'drop')) {
-        error({error: 'invalid db name'});
-    } else if (!valid_action_role(userRoles, 'drop')) {
-        error({error: 'invalid role', user: userName, roles: roles});
-    } else if (isDbAdmin(dbToRemove, userName, userRoles)) {
-        var db = client.db(dbToRemove).remove(
-            function(err) {
-                // @TODO if err, do something!
-                var rolesToClean = [dbToRemove + '.admin', dbToRemove + '.writer', dbToRemove + '.reader'];
-                cleanRoles(srcDb, rolesToClean);
-                respond({
-                    status: 'ok',
-                    action: 'drop',
-                    src_db: srcDb,
-                    dst_db: dbToRemove
-                });
-            });
-    } else {
-        error({error: 'user is not a db admin', user: userName, roles: userRoles});
-    }
-};
-
 // http://localhost:5984/dbName/_admin_db?action=set_roles&roles={user1 : [role1, role2], user2 : [role1, role2]}
-exports.setRoles = function (srcDb, userName, userRoles, query) {
+exports.setRoles = function (callback, srcDb, userName, userRoles, query) {
     if (!isDbAdmin(srcDb, userName, userRoles)) {
-        error({error: 'user is not a db admin', user: userName, roles: userRoles});
+        callback({error: 'user is not a db admin', user: userName, roles: userRoles});
         return;
     }
 
     var roles = query.roles;
-    try {
-        roles = JSON.parse(roles);
-    } catch (x) {
-        error({error: 'invalid roles param : ' + x + ' ' + roles});
-    }
 
-    var userDb = client.db('_users');
+    var userDb = adminClient.db('_users');
 
     // get user to edit
     var userkeys = []; 
     for (var u in roles) {
         userkeys.push('org.couchdb.user:' + u);
     }
-   
+
     // get all user docs
     userDb.allDocs({
         include_docs: true,
         keys: userkeys,
     }, function(err, data) {
             if (err) {
-                error(err);
+                callback(err);
             } else {
                 var newDocs = [];
                 data.rows.forEach(
@@ -368,9 +357,9 @@ exports.setRoles = function (srcDb, userName, userRoles, query) {
                     }
                 ); // end for each
                 userDb.bulkDocs(
-                    {docs : newDocs}, 
+                    { docs : newDocs }, 
                     function () {
-                        respond({
+                        callback(false, {
                             status: 'ok',
                             action: 'set_roles',
                             src_db: srcDb,
@@ -385,7 +374,7 @@ exports.setRoles = function (srcDb, userName, userRoles, query) {
 
 // remove roles
 function cleanRoles(srcDb, rolesToClean) {
-    var userDb = client.db('_users');
+    var userDb = adminClient.db('_users');
     userDb.allDocs(// get all user docs
         {include_docs: true}, 
         function(err, data) {
@@ -416,22 +405,19 @@ function cleanRoles(srcDb, rolesToClean) {
     );
 }
 
-exports.process_query = function (action, srcDb, userName, userRoles, query) {
-    
+exports.process_query = function (action, srcDb, userName, userRoles, query, callback) {
 
     var handler = actionMap[action];
     if (!handler) {
-        error("unknown action"); return;
+        callback('unknown action');
+        return;
     }
 
-    handler(srcDb, userName, userRoles, query);
+    handler(callback, srcDb, userName, userRoles, query);
 }
 
 // return couchdb client
-exports.init = function (respond_func, error_func) {
-
-    respond = respond_func;
-    error = error_func;
+exports.init = function () {
 
     actionMap = {
         create : exports.createDb,
@@ -447,21 +433,26 @@ exports.init = function (respond_func, error_func) {
     try {
         // get config
         var config = iniparser.parseSync(__dirname + '/admin_db.ini');
-        client = couchdb.createClient(config.port, config.host, config.login, config.password);
-    } catch (Exception) {}
+        adminClient = couchdb.createClient(config.port, config.host, config.login, config.password);
+    } catch (Exception) {
+        //console.log('Could not read config from current dir');
+    }
 
-    if (!client) {
+    if (!adminClient) {
         try {
             // get config
             var config = iniparser.parseSync('/opt/datamanager/dm-admin.ini');
-            client = couchdb.createClient(config.port, config.host, config.login, config.password);
-        } catch (Exception) {}
+            adminClient = couchdb.createClient(config.port, config.host, config.login, config.password);
+        } catch (Exception) {
+            //console.log('Could not read config from /opt/datamanager');
+        }
     }
 
     // try default port
-    if (!client) {
-        client = couchdb.createClient("5984", "localhost");
+    if (!adminClient) {
+        adminClient = couchdb.createClient("5984", "localhost");
+        console.log('Warning! Fallback config used');
     }
 
-    return client;
+    return adminClient;
 };
