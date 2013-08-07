@@ -203,21 +203,23 @@ exports.dropDb = function (callback, srcDb, userName, userRoles, query) {
     } else if (!valid_action_role(userRoles, 'drop')) {
         callback({error: 'invalid role', user: userName, roles: roles});
     } else if (isDbAdmin(dbToRemove, userName, userRoles)) {
-        var db = adminClient.db(dbToRemove).remove(
-            function(err) {
-                if (err) {
-                    callback(err);
-                    return;
-                }
-                var rolesToClean = [dbToRemove + '.admin', dbToRemove + '.writer', dbToRemove + '.reader'];
-                cleanRoles(srcDb, rolesToClean);
-                callback(false, {
-                    status: 'ok',
-                    action: 'drop',
-                    src_db: srcDb,
-                    dst_db: dbToRemove
+        cleanReplications(dbToRemove, function() { // remove replications first (order is important)
+            var db = adminClient.db(dbToRemove).remove(
+                function(err) {
+                    if (err) {
+                        callback(err);
+                        return;
+                    }
+                    var rolesToClean = [dbToRemove + '.admin', dbToRemove + '.writer', dbToRemove + '.reader'];
+                    cleanRoles(srcDb, rolesToClean);
+                    callback(false, {
+                        status: 'ok',
+                        action: 'drop',
+                        src_db: srcDb,
+                        dst_db: dbToRemove
+                    });
                 });
-            });
+        });
     } else {
         callback({error: 'user is not a db admin', user: userName, roles: userRoles});
     }
@@ -385,6 +387,30 @@ exports.setRoles = function (callback, srcDb, userName, userRoles, query) {
         }
     );
 };
+
+// removes all replications concerning db "dbname" from the _replicator database
+function cleanReplications(dbname, callback) {
+    var replicatorDb = adminClient.db('_replicator');
+    replicatorDb.allDocs({
+        include_docs: true
+    }, function(err, data) {
+        if (err) {
+            return false;
+        }
+        var rep,
+            docsToDelete = [];
+        for (var i=0; i < data.rows.length; i++) {
+            rep = data.rows[i].doc;
+            if (rep.source == dbname || rep.target == dbname) {
+                rep._deleted = true;
+                docsToDelete.push(rep);
+            }
+        }
+        replicatorDb.bulkDocs({
+            docs: docsToDelete
+        }, callback);
+    });
+}
 
 // remove roles
 function cleanRoles(srcDb, rolesToClean) {
