@@ -35,49 +35,63 @@ function isDbMember(dbName, user, user_roles) {
     return false;
 }
 
+function tryPublicDb(dbname, cb) {
+    try {
+        var anonymousClient = couchdb.createClient(5984, 'localhost', null, null),
+            db = anonymousClient.db(dbname);
+        db.request('/_security', null, function(err, data) {
+            cb(! err);
+        });
+    } catch (e) {
+        cb(false);
+    }
+}
+
 
 // Handlers
 
 // returns active tasks for a database
 exports.getActiveTasks = function (callback, srcDb, user, userRoles, query) {
-    if (! isDbMember(srcDb, user, userRoles)) {
-        callback('not a db member');
-    } else {
-        adminClient.activeTasks(
-            function (err, data) {
-                if (err) {
-                    callback(err);
-                    return;
+
+    tryPublicDb(srcDb, function(isPublic) {
+        if (! isPublic && ! isDbMember(srcDb, user, userRoles)) {
+            callback('not a db member');
+        } else {
+            adminClient.activeTasks(
+                function (err, data) {
+                    if (err) {
+                        callback(err);
+                        return;
+                    }
+                    data = data || [];
+
+                    data = data.filter(function (e) {
+                        if(e.database && e.database === srcDb) {
+                            e.details = 'db indexation';
+                            return true;
+                        }
+
+                        if (e.type === 'replication' && (e.source === srcDb || e.target === srcDb)) {
+                            var otherDb = e.source === srcDb ? e.target : e.source;
+                            otherDb = url.parse(otherDb).pathname;
+                            e.details = 'synchronisation with ' + otherDb;
+                            return true;
+                        }
+                        return false;
+                    });
+
+                    callback(false, data);
                 }
-                data = data || [];
-
-                data = data.filter(function (e) {
-                    if(e.database && e.database === srcDb) {
-                        e.details = 'db indexation';
-                        return true;
-                    }
-
-                    if (e.type === 'replication' && (e.source === srcDb || e.target === srcDb)) {
-                        
-                        var otherDb = e.source === srcDb ? e.target : e.source;
-                        otherDb = url.parse(otherDb).pathname;
-                        e.details = 'synchronisation with ' + otherDb;
-                        return true;
-                    }
-                    return false;
-                });
-
-                callback(false, data);
-            }
-        );
-    }
+            );
+        }
+    });
 };
 
 // sets a database public or private
 exports.setPublicDb = function (callback, srcDb, user, user_roles, query) {
     var isPublic = query['public'] === 'true' || query['public'] === true;
     
-    var rigths = {
+    var rights = {
         admins: {
             names: [],
             roles: [srcDb + '.admin']
@@ -90,7 +104,7 @@ exports.setPublicDb = function (callback, srcDb, user, user_roles, query) {
     var db = adminClient.db(srcDb);
     db.saveDoc(
         '_security', 
-        rigths, 
+        rights, 
         function() {
             callback(false, {
                 status: 'ok',
