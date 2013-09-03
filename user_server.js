@@ -145,16 +145,18 @@ ActionHandler.prototype.send_json = function(data) {
 };
 
 // return a file (code 200)
-ActionHandler.prototype.send_file = function (str_data, filename) {
+ActionHandler.prototype.send_file = function (str_data, filename, headers) {
 
-    ActionHandler.prototype.start_stream(filename);
+    ActionHandler.prototype.start_stream(filename, headers);
     this.r.end(str_data);
 };
 
 // starts progressive downloading of a file (code 200))
-ActionHandler.prototype.start_stream = function (filename) {
+// Headers can be an object containing key-value pairs (for example:
+// { 'Content-Type': 'my-super-content-type', ... } ), or null to use default headers
+ActionHandler.prototype.start_stream = function (filename, headers) {
 
-    this.r.writeHead(200, {
+    var defaultHeaders = {
         'Content-Type': 'application/force-download',
         //"Content-Transfer-Encoding": "application/octet-stream\n",
         "Content-disposition": "attachment; filename=" + filename,
@@ -162,7 +164,15 @@ ActionHandler.prototype.start_stream = function (filename) {
         "Pragma": "no-cache", 
         "Cache-Control": "must-revalidate, post-check=0, pre-check=0, public",
         "Expires": "0"
-    });
+    };
+
+    if (headers) {
+        for (var h in headers)  {
+            defaultHeaders[h] = headers[h];
+        }
+    }
+
+    this.r.writeHead(200, defaultHeaders);
 };
 
 // sends a chunk for progressive downloading
@@ -421,9 +431,17 @@ function parse_user_req(req, res, urls, parsed_url, ddoc_id, dbname) {
                        body += data;
                    });
             req.on('end', function () {
-                try { q.data = JSON.parse(body); }
-                catch(Exception) { q.data = body; }
-
+                try {
+                    q.data = JSON.parse(body);
+                } catch(Exception) {
+                    q.data = body;
+                }
+                if (req.headers['content-type'] == "application/x-www-form-urlencoded") {
+                    //log('q.data avant: ' + q.data);
+                    q.data = decodeFormURLEncodedString(q.data);
+                    //log('q.data après');
+                    //log(q.data);
+                }
                 process_user_req(q);
             });
         } else {
@@ -433,6 +451,24 @@ function parse_user_req(req, res, urls, parsed_url, ddoc_id, dbname) {
     } catch (x) {
         log('error in parse_user_req :' + x);
     }
+}
+
+// converts a form/url-encoded string coming for a HTML form, to an object
+// @TOOD Warning!! what if some key or value contains '&' or '=' or '+' ?
+// very hazardous!! Maybe encode those 3 chars before sending them, and replace them here
+function decodeFormURLEncodedString(str) {
+    str = decodeURIComponent(str);
+    var parts = str.split('&'),
+        obj = {},
+        kv;
+    for (var i=0; i < parts.length; i++) {
+        kv = parts[i].split('=');
+        obj[kv[0]] = kv[1].replace(/\+/g, ' ')
+            .replace(/%26/g, '&')
+            .replace(/%2B/g, '+')
+            .replace(/%3D/g, '=');
+    }
+    return obj;
 }
 
 function main () {
