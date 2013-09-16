@@ -86,6 +86,10 @@ var ActionHandler =  function (host, r, method, dbname, db, ddoc_id, action, pat
 ActionHandler.cache = {}; // cache for _design/datamanager
 ActionHandler.prototype = {};
 
+ActionHandler.prototype.setAction = function(action) {
+    this.action = action;
+};
+
 // initialization
 // get code from _design/datamanager doc
 // use etag to cache data
@@ -142,6 +146,24 @@ function send_json(resp, json_data) {
 }
 ActionHandler.prototype.send_json = function(data) {
     send_json(this.r, data);
+};
+
+//return a standard response to HTTP OPTIONS method (code 200)
+// used for REST documentation
+// copied from http://stackoverflow.com/questions/17689986/jquery-ajax-sending-both-options-and-post-how-to-handle-with-express-js-node-j
+function send_options(resp, json_data, allowedMethods) {
+    var headers = {};
+    allowedMethods = allowedMethods || "POST, GET, PUT, DELETE, OPTIONS";
+    headers["Access-Control-Allow-Origin"] = "*";
+    headers["Access-Control-Allow-Methods"] = allowedMethods;
+    headers["Access-Control-Allow-Credentials"] = true;
+    headers["Access-Control-Max-Age"] = '86400'; // 24 hours
+    headers["Access-Control-Allow-Headers"] = "X-Requested-With, X-HTTP-Method-Override, Content-Type, Accept";
+    resp.writeHead(200, headers);
+    resp.end(JSON.stringify(json_data) + '\n');
+}
+ActionHandler.prototype.send_options = function(data, allowedMethods) {
+  send_options(this.r, data, allowedMethods);
 };
 
 // return a file (code 200)
@@ -420,7 +442,12 @@ function parse_user_req(req, res, urls, parsed_url, ddoc_id, dbname) {
                   clientsPool, client);
 
         if(!dbname || !action) {
-            q.send_error("bad url");
+            if (req.method == 'OPTIONS') { // run services description
+                q.setAction('describe_services');
+                process_user_req(q);
+            } else {
+                q.send_error("bad url");
+            }
             return;
         }
 
