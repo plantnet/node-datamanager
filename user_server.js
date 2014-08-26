@@ -95,8 +95,8 @@ ActionHandler.prototype.setAction = function(action) {
 // use etag to cache data
 ActionHandler.prototype.init = function (cb) {
     var docid = this.ddoc_id; // "_design/datamanager";
-    var self = this, etag, key = self.dbname + docid
-    cached_doc = ActionHandler.cache[key];
+    var self = this, etag, key = self.dbname + docid;
+    var cached_doc = ActionHandler.cache[key];
 
     // cache with etags
     if(cached_doc) { etag = cached_doc._rev; }
@@ -111,7 +111,7 @@ ActionHandler.prototype.init = function (cb) {
             } 
             if (data) {
                 self.ddoc = data;
-                self.ddoc.server = self.ddoc.server || {}
+                self.ddoc.server = self.ddoc.server || {};
                 
                 try {
                     ActionHandler.cache[key] = data; // save cache
@@ -121,7 +121,7 @@ ActionHandler.prototype.init = function (cb) {
                     cb(x);
                 }
             } else {
-                cb("unknown design doc " + docid)
+                cb("unknown design doc " + docid);
             }
         });
 };
