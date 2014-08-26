@@ -13,7 +13,7 @@
   "directories": {},
   "main": "",
   "bin": {
-    "plantnet-dm-server": "user_server.js",
+    "plantnet-dm-server": "user_server.js"
   },
   "dependencies": {
     "iniparser": "*",
